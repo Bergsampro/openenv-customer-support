@@ -1,81 +1,67 @@
 import asyncio
 import os
-import textwrap
-from typing import List, Optional
+import sys
 from openai import OpenAI
 from environment import CustomerSupportEnv, Action
 
-# MANDATORY CONFIGURATION (Matches their sample)
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
-API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
-TASK_NAME = "task_1_easy"
-BENCHMARK = "customer_support_triage"
-
-# LOGGING FUNCTIONS (Exact matches to their sample requirements)
-def log_start(task: str, env: str, model: str) -> None:
-    print(f"[START] task={task} env={env} model={model}", flush=True)
-
-def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
-    error_val = error if error else "null"
-    done_val = str(done).lower()
-    print(f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}", flush=True)
-
-def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
-    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
-
 async def main() -> None:
-    # 1. Initialize Client
-    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-    
-    # 2. Initialize Environment
+    # 1. STRICT CREDENTIALS (Matches Sample & Proxy Requirements)
+    api_key = os.environ.get("API_KEY")
+    base_url = os.environ.get("API_BASE_URL")
+    model_name = os.environ.get("MODEL_NAME", "gpt-4o-mini")
+
+    if not api_key or not base_url:
+        print("Error: Missing API_KEY or API_BASE_URL from the hackathon environment.")
+        sys.exit(1)
+
+    # 2. INITIALIZE CLIENT (Must use the injected proxy URL)
+    client = OpenAI(
+        base_url=base_url,
+        api_key=api_key
+    )
+
     env = CustomerSupportEnv()
     
-    history: List[str] = []
-    rewards: List[float] = []
-    steps_taken = 0
-    score = 0.0
-    success = False
-
-    log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME)
+    # 3. EXACT [START] LOG FORMAT
+    print(f"[START] task=task_1_easy env=customer_support_triage model={model_name}", flush=True)
 
     try:
-        # 3. Reset Environment
-        obs = env.reset(task_id=TASK_NAME)
+        obs = env.reset(task_id="task_1_easy")
         
-        # 4. Episode Loop (Max 8 steps as per their sample)
-        for step in range(1, 9):
-            # For the baseline, we route to tech
-            # The judges just want to see the environment loop work
-            message = "route to tech" 
+        rewards = []
+        steps_taken = 0
+        
+        # Max steps allowed loop
+        for step in range(1, 6):
+            # Baseline Action
             chosen_action = Action(action_type="route", department="tech")
             
-            # Step the environment
             result = env.step(chosen_action)
             
             reward = result["reward"] or 0.0
             done = result["done"]
-            error = None # No errors in our local env
             
             rewards.append(reward)
             steps_taken = step
             
-            # Log the step in their EXACT format
-            log_step(step=step, action=message, reward=reward, done=done, error=error)
+            # 4. EXACT [STEP] LOG FORMAT (Lowercase booleans, 2 decimal floats)
+            print(f"[STEP] step={step} action=route_to_tech reward={reward:.2f} done={str(done).lower()} error=null", flush=True)
             
             if done:
                 break
 
-        # 5. Calculate Final Score
+        # Calculate final score based on sample logic
         score = sum(rewards) / steps_taken if steps_taken > 0 else 0.0
         score = min(max(score, 0.0), 1.0)
-        success = score >= 0.1
+        success = score >= 0.1 # Example threshold
 
-    finally:
-        # 6. Cleanup and Final Log
-        # env.close() # Add if your env has a close method
-        log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
+        # 5. EXACT [END] LOG FORMAT
+        rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+        print(f"[END] success={str(success).lower()} steps={steps_taken} score={score:.3f} rewards={rewards_str}", flush=True)
+
+    except Exception as e:
+        print(f"[DEBUG] Execution error: {e}", flush=True)
+        print(f"[END] success=false steps=0 score=0.000 rewards=0.00", flush=True)
 
 if __name__ == "__main__":
     asyncio.run(main())
