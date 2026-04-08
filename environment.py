@@ -1,11 +1,10 @@
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 
-# --- Typed Models ---
 class Ticket(BaseModel):
     id: str
     message: str
-    sentiment: float  # 0.0 (angry) to 1.0 (happy)
+    sentiment: float
     category: str
 
 class Observation(BaseModel):
@@ -13,10 +12,9 @@ class Observation(BaseModel):
     current_ticket: Optional[Ticket]
 
 class Action(BaseModel):
-    action_type: str  # 'route', 'escalate', 'resolve'
+    action_type: str
     department: Optional[str] = None
 
-# --- Environment Class ---
 class CustomerSupportEnv:
     def __init__(self):
         self.queue: List[Ticket] = []
@@ -28,7 +26,6 @@ class CustomerSupportEnv:
         self.task = task_id
         self.step_count = 0
         
-        # Load different queues based on task difficulty
         if task_id == "task_1_easy":
             self.queue = [
                 Ticket(id="T1", message="How do I reset my password?", sentiment=0.8, category="tech"),
@@ -55,32 +52,30 @@ class CustomerSupportEnv:
         self.step_count += 1
         
         if not self.queue:
-            return {"observation": self.state().model_dump(), "reward": 1.0, "done": True, "info": {"msg": "Queue empty"}}
+            return {"observation": self.state().model_dump(), "reward": 0.99, "done": True, "info": {"msg": "Queue empty"}}
 
         ticket = self.queue.pop(0)
-        reward = 0.0
+        reward = 0.01 # Strict baseline greater than 0
 
-        # Agent Grader Logic (Scores strictly 0.0 to 1.0)
         if self.task == "task_1_easy":
             if action.action_type == "route" and action.department == ticket.category:
-                reward = 1.0
+                reward = 0.99 # Strict ceiling less than 1
         
         elif self.task == "task_2_medium":
             if ticket.sentiment <= 0.2 and action.action_type == "escalate":
-                reward = 1.0 # Correctly escalated angry customer
+                reward = 0.99 
             elif action.action_type == "route" and action.department == ticket.category:
-                reward = 0.5 # Handled it, but missed the urgency
+                reward = 0.50
                 
         else: # task_3_hard
-            # Ticket: System crashed, lost data. (Needs human escalation to tech)
             if action.action_type == "escalate" and action.department == "tech":
-                reward = 1.0 # Perfect action
+                reward = 0.99
             elif action.action_type == "escalate":
-                reward = 0.7 # Escalated, but maybe forgot the department
+                reward = 0.70
             elif action.action_type == "route":
-                reward = 0.2 # Routing is okay, but misses the critical urgency
+                reward = 0.20
             else:
-                reward = 0.0
+                reward = 0.01
 
         done = self.step_count >= self.max_steps or len(self.queue) == 0
 
