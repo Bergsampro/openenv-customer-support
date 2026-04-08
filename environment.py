@@ -72,10 +72,15 @@ class CustomerSupportEnv:
                 reward = 0.5 # Handled it, but missed the urgency
                 
         else: # task_3_hard
-            if action.action_type == "resolve":
-                reward = 1.0
+            # Ticket: System crashed, lost data. (Needs human escalation to tech)
+            if action.action_type == "escalate" and action.department == "tech":
+                reward = 1.0 # Perfect action
             elif action.action_type == "escalate":
-                reward = 0.4
+                reward = 0.7 # Escalated, but maybe forgot the department
+            elif action.action_type == "route":
+                reward = 0.2 # Routing is okay, but misses the critical urgency
+            else:
+                reward = 0.0
 
         done = self.step_count >= self.max_steps or len(self.queue) == 0
 
@@ -84,4 +89,4 @@ class CustomerSupportEnv:
             "reward": float(reward),
             "done": done,
             "info": {"processed_ticket": ticket.id}
-        } 
+        }
